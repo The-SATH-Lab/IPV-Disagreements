@@ -9,6 +9,9 @@ __pycache__/
 # Hiding Data Files
 data/
 
+# Hiding .DS_Store Files
+*.DS_Store
+
 # Distribution / packaging
 .Python
 build/
