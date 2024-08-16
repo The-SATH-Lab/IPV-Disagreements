@@ -7,13 +7,12 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import pickle
 from scripts.config import PROCESSED_SNAP_MESSAGING_DIR, PROCESSED_SNAP_EMA_DIR, SAVED_EMBEDDINGS_SNAP_DIR
-from .helpers import load_data, aggregate_embeddings, calculate_average_response_time, clean_text, analyze_sentiment
+from .helpers import calculate_average_response_time, clean_text, analyze_sentiment
 import warnings
 warnings.filterwarnings("ignore")
 
-
 class SnapProcessor:
-    def __init__(self, model_name='distilbert-base-uncased', batch_size=32, relationship='Romantic Partner', save_dir='saved_embeddings'):
+    def __init__(self, model_name='distilbert/distilbert-base-uncased', batch_size=32, relationship='Romantic Partner', embedding_method='mean_pooling', save_dir='saved_embeddings'):
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
@@ -21,38 +20,25 @@ class SnapProcessor:
         self.model.to(self.device)
         self.batch_size = batch_size
         self.relationship = relationship
+        self.embedding_method = embedding_method
         self.save_dir = save_dir
 
-    def get_embeddings(self, texts, embedding_method = 'mean_pooling'):
+    def get_embeddings(self, texts):
         """
         Computes embeddings for a list of texts using the specified model and embedding method.
-
-        Parameters:
-        - texts (list of str): List of texts to compute embeddings for.
-        - embedding_method (str): Method to compute embeddings. 
-        Accepts 'mean_pooling' (default) or 'cls_token'.
-
-        Returns:
-        - embeddings (numpy array): The computed embeddings as a numpy array.
         """
-        
         inputs = self.tokenizer(texts, return_tensors='pt', padding=True, truncation=True, max_length=512)
         inputs = {key: val.to(self.device) for key, val in inputs.items()}
         with torch.no_grad():
             outputs = self.model(**inputs)
         
-        if embedding_method == 'cls_token':
-            # Extracting CLS token embedding (first token in the sequence)
-            embeddings = outputs.last_hidden_state[:, 0, :].cpu().numpy()
-
-        elif embedding_method == 'mean_pooling':
-            # Mean pooling of the last hidden state
-            embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()
-
+        if self.embedding_method == 'cls_token':
+            embeddings = outputs.last_hidden_state[:, 0, :].cpu().numpy()  # Extracting CLS token embedding
+        elif self.embedding_method == 'mean_pooling':
+            embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()  # Mean pooling of the last hidden state
         else:
-            raise ValueError(f"Unknown embedding method: {embedding_method}")
+            raise ValueError(f"Unknown embedding method: {self.embedding_method}")
 
-        # Extracting 
         return embeddings
     
     def batch_apply(self, df, func):
@@ -69,8 +55,14 @@ class SnapProcessor:
 
     def save_embeddings(self, df):
         """Saves embeddings to a CSV file or loads them if they already exist."""
-        os.makedirs(self.save_dir, exist_ok=True)
-        embedding_file = os.path.join(self.save_dir, f"{self.model_name.replace('/', '_')}_embeddings.csv")
+        model_name_clean = self.model_name.split('/')[-1]  # Extract the last part of the model name
+
+        # Construct the directory structure
+        save_path = os.path.join(self.save_dir, model_name_clean, self.relationship.replace(' ', '_'))
+        os.makedirs(save_path, exist_ok=True)
+
+        # Filename for the embeddings
+        embedding_file = os.path.join(save_path, f"{self.embedding_method}_embeddings.csv")
         
         if not os.path.exists(embedding_file):
             # Compute and save embeddings
@@ -148,7 +140,7 @@ class SnapProcessor:
         - message_count (bool): Whether to include message count as a feature for the Baseline model. Default is False.
         - return_train_test (bool): Whether to return training and test sets. Default is False.
         - test_split (str): Method to split the data into training and test sets. 
-        Accepts 'random' (default) or 'participant_based_split'.
+          Accepts 'random' (default) or 'participant_based_split'.
 
         Returns:
         - modeling_df (DataFrame) or (train_df, test_df) tuple: The final dataframe(s) ready for modeling.
@@ -226,7 +218,7 @@ class SnapProcessor:
         if return_train_test:
             if test_split == 'random':
                 snap_train_df, snap_test_df = train_test_split(modeling_df, test_size=0.2,
-                                                            stratify=modeling_df['Disagreement'], random_state=42)
+                                                               stratify=modeling_df['Disagreement'], random_state=42)
             elif test_split == 'participant_based_split':
                 snap_train_df = modeling_df[modeling_df['Participant ID'] <= 1120]
                 snap_test_df = modeling_df[modeling_df['Participant ID'] > 1120]
@@ -234,6 +226,7 @@ class SnapProcessor:
             return snap_train_df, snap_test_df
 
         return modeling_df
+
 
 
 
