@@ -128,7 +128,8 @@ class SnapProcessor:
         filtered_ema_df['Participant ID'] = filtered_ema_df['Participant ID'].astype('int')
         return filtered_ema_df
 
-    def prepare_modeling_df(self, messaging_dir, ema_dir, embeddings=True, sentiment_analysis=False, message_count=False, return_train_test=False, test_split='random'):
+    def prepare_modeling_df(self, messaging_dir, ema_dir, embeddings=True, sentiment_analysis=False, message_count=False,
+                             return_train_test=False, test_split='random', random_state=42):
         """
         Prepares the final modeling dataframe, including all necessary processing steps.
 
@@ -218,10 +219,13 @@ class SnapProcessor:
         if return_train_test:
             if test_split == 'random':
                 snap_train_df, snap_test_df = train_test_split(modeling_df, test_size=0.2,
-                                                               stratify=modeling_df['Disagreement'], random_state=42)
+                                                               stratify=modeling_df['Disagreement'], random_state=random_state)
             elif test_split == 'participant_based_split':
                 snap_train_df = modeling_df[modeling_df['Participant ID'] <= 1120]
                 snap_test_df = modeling_df[modeling_df['Participant ID'] > 1120]
+            
+            snap_train_df.reset_index(drop=True, inplace=True)
+            snap_test_df.reset_index(drop=True, inplace=True)
 
             return snap_train_df, snap_test_df
 

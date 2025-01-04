@@ -128,7 +128,8 @@ class SocialProcessor:
         filtered_ema_df['Participant ID'] = filtered_ema_df['Participant ID'].astype('int')
         return filtered_ema_df
     
-    def prepare_modeling_df(self, messaging_dir, ema_dir, embeddings=True, sentiment_analysis=False, message_count=False, return_train_test=False):
+    def prepare_modeling_df(self, messaging_dir, ema_dir, embeddings=True, sentiment_analysis=False,
+                             message_count=False, return_train_test=False, random_state=42):
         """
         Prepares the final modeling dataframe, including all necessary processing steps.
 
@@ -215,7 +216,11 @@ class SocialProcessor:
 
         if return_train_test:
             social_train_df, social_test_df = train_test_split(modeling_df, test_size=0.2,
-                                                               stratify=modeling_df['Disagreement'], random_state=42)
+                                                               stratify=modeling_df['Disagreement'], random_state=random_state)
+            # Reset the index
+            social_train_df.reset_index(drop=True, inplace=True)
+            social_test_df.reset_index(drop=True, inplace=True)
+
             return social_train_df, social_test_df
 
         return modeling_df
